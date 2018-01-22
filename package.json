@@ -1,0 +1,15 @@
+{
+  "name": "sim-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-carrier SIM lifecycle management platform",
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "jest": "^22.0.4"
+  },
+  "engines": {
+    "node": ">=8.9.0"
+  }
+}
