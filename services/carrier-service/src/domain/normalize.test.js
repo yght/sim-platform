@@ -34,3 +34,32 @@ describe('Bell', function () {
     expect(result.msisdn).toBeNull();
   });
 });
+
+describe('Vodafone', function () {
+  it('reads the nested subscriber envelope', function () {
+    var payload = { subscriber: { status: 'active', msisdn: '+447700900142', tariff_code: 'VF_5GB' } };
+    var result = n.fromVodafone(payload);
+
+    expect(result.state).toBe(States.ACTIVE);
+    expect(result.msisdn).toBe('447700900142');
+    expect(result.ratePlanId).toBe('VF_5GB');
+  });
+
+  it('folds "assigned" into PRE_ACTIVE, since it carries no traffic either', function () {
+    expect(n.fromVodafone({ subscriber: { status: 'assigned' } }).state).toBe(States.PRE_ACTIVE);
+    expect(n.fromVodafone({ subscriber: { status: 'stock' } }).state).toBe(States.PRE_ACTIVE);
+  });
+
+  it('distinguishes the two in-progress states', function () {
+    expect(n.fromVodafone({ subscriber: { status: 'activation_in_progress' } }).state).toBe(States.ACTIVATING);
+    expect(n.fromVodafone({ subscriber: { status: 'deactivation_in_progress' } }).state).toBe(States.TERMINATING);
+  });
+
+  it('is case and whitespace insensitive', function () {
+    expect(n.fromVodafone({ subscriber: { status: ' ACTIVE ' } }).state).toBe(States.ACTIVE);
+  });
+
+  it('survives a missing subscriber envelope', function () {
+    expect(n.fromVodafone({}).recognised).toBe(false);
+  });
+});

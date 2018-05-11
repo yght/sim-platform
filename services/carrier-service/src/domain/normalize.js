@@ -7,8 +7,7 @@
  * into it here, in pure functions, so that nothing above this layer ever
  * sees a carrier's own vocabulary.
  *
- * Bell first, since they are the only carrier live today. Vodafone and AT&T
- * follow the same shape.
+ * Bell and Vodafone are live; AT&T follows the same shape.
  */
 
 var States = {
@@ -29,6 +28,22 @@ var BELL_STATUS = {
   AC: States.ACTIVE,
   SU: States.SUSPENDED,
   DE: States.TERMINATED    // deactivated
+};
+
+/**
+ * Vodafone use long-form lowercase strings and an 'assigned' state that has
+ * no equivalent on Bell: the SIM is tied to an account but not yet carrying
+ * traffic. We fold it into PRE_ACTIVE because for our purposes an
+ * assigned-but-not-live SIM behaves exactly like inventory.
+ */
+var VODAFONE_STATUS = {
+  stock: States.PRE_ACTIVE,
+  assigned: States.PRE_ACTIVE,
+  activation_in_progress: States.ACTIVATING,
+  active: States.ACTIVE,
+  suspended: States.SUSPENDED,
+  deactivation_in_progress: States.TERMINATING,
+  deactivated: States.TERMINATED
 };
 
 function digitsOnly(value) {
@@ -61,7 +76,33 @@ function fromBell(payload) {
   };
 }
 
+/**
+ * Vodafone.
+ *
+ * Quirks handled here:
+ *  - The interesting fields are nested under `subscriber`.
+ *  - MSISDN arrives in E.164 with a '+'.
+ *  - Activation is asynchronous: the POST returns 202 and the real answer
+ *    lands on our callback endpoint minutes later.
+ */
+function fromVodafone(payload) {
+  var body = payload || {};
+  var sub = body.subscriber || {};
+  var raw = typeof sub.status === 'string' ? sub.status.trim().toLowerCase() : '';
+  var state = VODAFONE_STATUS[raw];
+
+  return {
+    carrier: 'vodafone',
+    state: state || null,
+    rawStatus: raw || null,
+    msisdn: digitsOnly(sub.msisdn),
+    ratePlanId: sub.tariff_code ? String(sub.tariff_code) : null,
+    recognised: Boolean(state)
+  };
+}
+
 module.exports = {
   States: States,
-  fromBell: fromBell
+  fromBell: fromBell,
+  fromVodafone: fromVodafone
 };
