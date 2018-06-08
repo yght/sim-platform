@@ -20,6 +20,7 @@ var Scopes = {
   ACTIVATE_SIM: 'activate:sims',
   SUSPEND_SIM: 'suspend:sims',
   TERMINATE_SIM: 'terminate:sims',
+  APPROVE_FRAUD: 'approve:fraud',
   READ_USAGE: 'read:usage',
   ADMIN: 'admin:all'
 };
