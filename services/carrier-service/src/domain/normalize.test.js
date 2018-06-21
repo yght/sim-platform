@@ -63,3 +63,30 @@ describe('Vodafone', function () {
     expect(n.fromVodafone({}).recognised).toBe(false);
   });
 });
+
+describe('AT&T', function () {
+  it('maps the screaming snake statuses', function () {
+    expect(n.fromAtt({ status: 'PREACTIVE' }).state).toBe(States.PRE_ACTIVE);
+    expect(n.fromAtt({ status: 'ACTIVE' }).state).toBe(States.ACTIVE);
+    expect(n.fromAtt({ status: 'DEACTIVATED' }).state).toBe(States.TERMINATED);
+  });
+
+  it('folds both suspension flavours to SUSPENDED but keeps who did it', function () {
+    var byCarrier = n.fromAtt({ status: 'SUSPENDED_BY_CARRIER' });
+    var byCustomer = n.fromAtt({ status: 'SUSPENDED_BY_CUSTOMER' });
+
+    expect(byCarrier.state).toBe(States.SUSPENDED);
+    expect(byCarrier.suspendedBy).toBe('CARRIER');
+
+    expect(byCustomer.state).toBe(States.SUSPENDED);
+    expect(byCustomer.suspendedBy).toBe('CUSTOMER');
+  });
+
+  it('leaves suspendedBy null when the SIM is not suspended', function () {
+    expect(n.fromAtt({ status: 'ACTIVE' }).suspendedBy).toBeNull();
+  });
+
+  it('reads the offer code as our rate plan', function () {
+    expect(n.fromAtt({ status: 'ACTIVE', offerCode: 'ATT_UNL_55' }).ratePlanId).toBe('ATT_UNL_55');
+  });
+});

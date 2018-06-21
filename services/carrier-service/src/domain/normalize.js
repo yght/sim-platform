@@ -7,7 +7,7 @@
  * into it here, in pure functions, so that nothing above this layer ever
  * sees a carrier's own vocabulary.
  *
- * Bell and Vodafone are live; AT&T follows the same shape.
+ * All three carriers are live.
  */
 
 var States = {
@@ -44,6 +44,21 @@ var VODAFONE_STATUS = {
   suspended: States.SUSPENDED,
   deactivation_in_progress: States.TERMINATING,
   deactivated: States.TERMINATED
+};
+
+/**
+ * AT&T use SCREAMING_SNAKE and, uniquely, distinguish a carrier-initiated
+ * suspension from a customer-initiated one at the status level rather than
+ * in a separate reason field.
+ */
+var ATT_STATUS = {
+  PREACTIVE: States.PRE_ACTIVE,
+  ACTIVATION_PENDING: States.ACTIVATING,
+  ACTIVE: States.ACTIVE,
+  SUSPENDED_BY_CUSTOMER: States.SUSPENDED,
+  SUSPENDED_BY_CARRIER: States.SUSPENDED,
+  DEACTIVATION_PENDING: States.TERMINATING,
+  DEACTIVATED: States.TERMINATED
 };
 
 function digitsOnly(value) {
@@ -101,8 +116,41 @@ function fromVodafone(payload) {
   };
 }
 
+/**
+ * AT&T.
+ *
+ * Quirks handled here:
+ *  - Suspension source is encoded in the status itself, so we lift it out
+ *    into a separate field rather than losing it in the fold to SUSPENDED.
+ *  - They return the ICCID as `simIdentifier`, sometimes with the trailing
+ *    'F' padding nibble still attached.
+ */
+function fromAtt(payload) {
+  var body = payload || {};
+  var raw = typeof body.status === 'string' ? body.status.trim().toUpperCase() : '';
+  var state = ATT_STATUS[raw];
+
+  var suspendedBy = null;
+  if (raw === 'SUSPENDED_BY_CARRIER') {
+    suspendedBy = 'CARRIER';
+  } else if (raw === 'SUSPENDED_BY_CUSTOMER') {
+    suspendedBy = 'CUSTOMER';
+  }
+
+  return {
+    carrier: 'att',
+    state: state || null,
+    rawStatus: raw || null,
+    msisdn: digitsOnly(body.phoneNumber),
+    ratePlanId: body.offerCode ? String(body.offerCode) : null,
+    suspendedBy: suspendedBy,
+    recognised: Boolean(state)
+  };
+}
+
 module.exports = {
   States: States,
   fromBell: fromBell,
-  fromVodafone: fromVodafone
+  fromVodafone: fromVodafone,
+  fromAtt: fromAtt
 };
