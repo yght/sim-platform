@@ -2,6 +2,7 @@
 
 var n = require('./normalize');
 var States = n.States;
+var Reasons = n.FailureReasons;
 
 describe('Bell', function () {
   it('maps the mainframe two letter codes', function () {
@@ -88,5 +89,52 @@ describe('AT&T', function () {
 
   it('reads the offer code as our rate plan', function () {
     expect(n.fromAtt({ status: 'ACTIVE', offerCode: 'ATT_UNL_55' }).ratePlanId).toBe('ATT_UNL_55');
+  });
+});
+
+describe('failureReason', function () {
+  it('translates each carrier error vocabulary to ours', function () {
+    expect(n.failureReason('bell', 'E512')).toBe(Reasons.INVALID_RATE_PLAN);
+    expect(n.failureReason('vodafone', 'TAR-0002')).toBe(Reasons.INVALID_RATE_PLAN);
+    expect(n.failureReason('att', 'INVALID_OFFER_CODE')).toBe(Reasons.INVALID_RATE_PLAN);
+  });
+
+  it('agrees across carriers about a delinquent account', function () {
+    expect(n.failureReason('bell', 'E601')).toBe(Reasons.ACCOUNT_DELINQUENT);
+    expect(n.failureReason('vodafone', 'BIL-0031')).toBe(Reasons.ACCOUNT_DELINQUENT);
+    expect(n.failureReason('att', 'PAST_DUE_BALANCE')).toBe(Reasons.ACCOUNT_DELINQUENT);
+  });
+
+  it('prefers the carrier code over the HTTP status', function () {
+    // Bell answer 500 for what is really a validation problem. Believing the
+    // status code here would mean retrying something that can never succeed.
+    expect(n.failureReason('bell', 'E512', 500)).toBe(Reasons.INVALID_RATE_PLAN);
+  });
+
+  it('falls back to the HTTP status when the code is unknown', function () {
+    expect(n.failureReason('bell', 'E999', 404)).toBe(Reasons.SIM_NOT_FOUND);
+    expect(n.failureReason('att', null, 429)).toBe(Reasons.RATE_LIMITED);
+    expect(n.failureReason('vodafone', null, 503)).toBe(Reasons.CARRIER_UNAVAILABLE);
+  });
+
+  it('says UNKNOWN rather than inventing a reason', function () {
+    expect(n.failureReason('bell', null, 418)).toBe(Reasons.UNKNOWN);
+    expect(n.failureReason('threeuk', 'WHATEVER', 400)).toBe(Reasons.UNKNOWN);
+  });
+});
+
+describe('isRetryable', function () {
+  it('retries things that might resolve themselves', function () {
+    expect(n.isRetryable(Reasons.CARRIER_UNAVAILABLE)).toBe(true);
+    expect(n.isRetryable(Reasons.RATE_LIMITED)).toBe(true);
+    expect(n.isRetryable(Reasons.NO_NUMBERS_AVAILABLE)).toBe(true);
+  });
+
+  it('does not retry things that will never succeed', function () {
+    expect(n.isRetryable(Reasons.INVALID_RATE_PLAN)).toBe(false);
+    expect(n.isRetryable(Reasons.SIM_NOT_FOUND)).toBe(false);
+    expect(n.isRetryable(Reasons.SIM_ALREADY_ACTIVE)).toBe(false);
+    expect(n.isRetryable(Reasons.ACCOUNT_DELINQUENT)).toBe(false);
+    expect(n.isRetryable(Reasons.UNKNOWN)).toBe(false);
   });
 });

@@ -61,6 +61,48 @@ var ATT_STATUS = {
   DEACTIVATED: States.TERMINATED
 };
 
+/**
+ * Canonical failure reasons. Everything a carrier can tell us went wrong
+ * collapses into one of these, because the portal and the retry policy both
+ * need to reason about failures without knowing which carrier produced them.
+ */
+var FailureReasons = {
+  SIM_NOT_FOUND: 'SIM_NOT_FOUND',
+  SIM_ALREADY_ACTIVE: 'SIM_ALREADY_ACTIVE',
+  INVALID_RATE_PLAN: 'INVALID_RATE_PLAN',
+  NO_NUMBERS_AVAILABLE: 'NO_NUMBERS_AVAILABLE',
+  ACCOUNT_DELINQUENT: 'ACCOUNT_DELINQUENT',
+  CARRIER_UNAVAILABLE: 'CARRIER_UNAVAILABLE',
+  RATE_LIMITED: 'RATE_LIMITED',
+  UNKNOWN: 'UNKNOWN'
+};
+
+var BELL_ERRORS = {
+  E404: FailureReasons.SIM_NOT_FOUND,
+  E409: FailureReasons.SIM_ALREADY_ACTIVE,
+  E512: FailureReasons.INVALID_RATE_PLAN,
+  E520: FailureReasons.NO_NUMBERS_AVAILABLE,
+  E601: FailureReasons.ACCOUNT_DELINQUENT
+};
+
+var VODAFONE_ERRORS = {
+  'SUB-0001': FailureReasons.SIM_NOT_FOUND,
+  'SUB-0014': FailureReasons.SIM_ALREADY_ACTIVE,
+  'TAR-0002': FailureReasons.INVALID_RATE_PLAN,
+  'NUM-0007': FailureReasons.NO_NUMBERS_AVAILABLE,
+  'BIL-0031': FailureReasons.ACCOUNT_DELINQUENT,
+  'SYS-0500': FailureReasons.CARRIER_UNAVAILABLE
+};
+
+var ATT_ERRORS = {
+  SUBSCRIBER_NOT_FOUND: FailureReasons.SIM_NOT_FOUND,
+  DUPLICATE_ACTIVATION: FailureReasons.SIM_ALREADY_ACTIVE,
+  INVALID_OFFER_CODE: FailureReasons.INVALID_RATE_PLAN,
+  MSISDN_POOL_EXHAUSTED: FailureReasons.NO_NUMBERS_AVAILABLE,
+  PAST_DUE_BALANCE: FailureReasons.ACCOUNT_DELINQUENT,
+  THROTTLED: FailureReasons.RATE_LIMITED
+};
+
 function digitsOnly(value) {
   if (typeof value !== 'string') {
     return null;
@@ -148,9 +190,62 @@ function fromAtt(payload) {
   };
 }
 
+/**
+ * Map a carrier error onto our vocabulary.
+ *
+ * The HTTP status is the fallback, not the primary signal: Vodafone return
+ * 200 with an error envelope for business failures, and Bell return 500 for
+ * a validation error. Trusting the status code alone gets you retries on
+ * things that will never succeed.
+ */
+function failureReason(carrier, carrierCode, httpStatus) {
+  var table;
+
+  if (carrier === 'bell') {
+    table = BELL_ERRORS;
+  } else if (carrier === 'vodafone') {
+    table = VODAFONE_ERRORS;
+  } else if (carrier === 'att') {
+    table = ATT_ERRORS;
+  } else {
+    table = {};
+  }
+
+  if (carrierCode && Object.prototype.hasOwnProperty.call(table, carrierCode)) {
+    return table[carrierCode];
+  }
+
+  if (httpStatus === 404) {
+    return FailureReasons.SIM_NOT_FOUND;
+  }
+  if (httpStatus === 429) {
+    return FailureReasons.RATE_LIMITED;
+  }
+  if (httpStatus >= 500) {
+    return FailureReasons.CARRIER_UNAVAILABLE;
+  }
+
+  return FailureReasons.UNKNOWN;
+}
+
+/**
+ * Is this failure worth trying again?
+ *
+ * Retrying an invalid rate plan a hundred times does not make it valid, and
+ * every one of those calls costs us money and carrier goodwill.
+ */
+function isRetryable(reason) {
+  return reason === FailureReasons.CARRIER_UNAVAILABLE ||
+         reason === FailureReasons.RATE_LIMITED ||
+         reason === FailureReasons.NO_NUMBERS_AVAILABLE;
+}
+
 module.exports = {
   States: States,
+  FailureReasons: FailureReasons,
   fromBell: fromBell,
   fromVodafone: fromVodafone,
-  fromAtt: fromAtt
+  fromAtt: fromAtt,
+  failureReason: failureReason,
+  isRetryable: isRetryable
 };
