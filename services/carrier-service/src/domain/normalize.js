@@ -3,11 +3,15 @@
 /**
  * Carrier response normalisation.
  *
- * One canonical model, defined by us. Every carrier response is translated
- * into it here, in pure functions, so that nothing above this layer ever
- * sees a carrier's own vocabulary.
+ * This file is the whole reason the carrier-service exists. Three carriers,
+ * three completely different ideas of what a SIM status is and what an error
+ * looks like. Everything above this layer speaks one vocabulary; everything
+ * below it speaks whatever the carrier felt like in 2009 when they wrote
+ * their API.
  *
- * All three carriers are live.
+ * Pure functions only - given a carrier payload, produce our shape. No I/O
+ * here, which means every carrier quirk we have ever been bitten by is
+ * reproducible in a unit test with a copy-pasted response body.
  */
 
 var States = {
@@ -21,10 +25,13 @@ var States = {
 
 /**
  * Bell send two-letter codes lifted straight out of their mainframe.
+ * 'PD' (pending) covers both "we have accepted your activation" and "we are
+ * midway through tearing the line down", which is ambiguous. We resolve it
+ * using the request we sent, not the code alone - see fromBell().
  */
 var BELL_STATUS = {
   IN: States.PRE_ACTIVE,   // in inventory
-  PD: States.ACTIVATING,   // pending
+  PD: States.ACTIVATING,   // pending - ambiguous, see below
   AC: States.ACTIVE,
   SU: States.SUSPENDED,
   DE: States.TERMINATED    // deactivated
@@ -32,8 +39,8 @@ var BELL_STATUS = {
 
 /**
  * Vodafone use long-form lowercase strings and an 'assigned' state that has
- * no equivalent on Bell: the SIM is tied to an account but not yet carrying
- * traffic. We fold it into PRE_ACTIVE because for our purposes an
+ * no equivalent on the other two: the SIM is tied to an account but not yet
+ * carrying traffic. We fold it into PRE_ACTIVE because for our purposes an
  * assigned-but-not-live SIM behaves exactly like inventory.
  */
 var VODAFONE_STATUS = {
@@ -115,13 +122,21 @@ function digitsOnly(value) {
  * Bell.
  *
  * Quirks handled here:
+ *  - 'PD' is ambiguous between activating and terminating. The pendingIntent
+ *    hint comes from the request we made; with no hint we assume ACTIVATING,
+ *    which is the far more common case.
  *  - MSISDNs come back with a leading '1' and dashes: "1-416-555-0142".
  *  - Every field is uppercase and space padded, because mainframe.
  */
-function fromBell(payload) {
+function fromBell(payload, pendingIntent) {
   var body = payload || {};
   var raw = typeof body.STATUS === 'string' ? body.STATUS.trim().toUpperCase() : '';
+
   var state = BELL_STATUS[raw];
+
+  if (raw === 'PD' && pendingIntent === 'TERMINATE') {
+    state = States.TERMINATING;
+  }
 
   return {
     carrier: 'bell',
@@ -140,7 +155,8 @@ function fromBell(payload) {
  *  - The interesting fields are nested under `subscriber`.
  *  - MSISDN arrives in E.164 with a '+'.
  *  - Activation is asynchronous: the POST returns 202 and the real answer
- *    lands on our callback endpoint minutes later.
+ *    lands on our callback endpoint minutes later. That is why the adapter
+ *    for Vodafone has a callback path and the other two do not.
  */
 function fromVodafone(payload) {
   var body = payload || {};

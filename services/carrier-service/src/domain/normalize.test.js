@@ -16,6 +16,14 @@ describe('Bell', function () {
     expect(n.fromBell({ STATUS: '  AC  ' }).state).toBe(States.ACTIVE);
   });
 
+  it('reads the ambiguous PD as activating by default', function () {
+    expect(n.fromBell({ STATUS: 'PD' }).state).toBe(States.ACTIVATING);
+  });
+
+  it('reads PD as terminating when that is what we asked for', function () {
+    expect(n.fromBell({ STATUS: 'PD' }, 'TERMINATE').state).toBe(States.TERMINATING);
+  });
+
   it('strips the dashes and leading country code off an MSISDN', function () {
     expect(n.fromBell({ STATUS: 'AC', MSISDN: '1-416-555-0142' }).msisdn).toBe('14165550142');
   });
