@@ -67,8 +67,9 @@ function checkDigitFor(body) {
 }
 
 /**
- * Bell send ICCIDs space separated in their inventory exports. Strip the
- * formatting before validating so we compare like with like.
+ * Carriers are inconsistent about formatting: Bell sends them space
+ * separated, AT&T sends them with a trailing 'F' padding nibble left over
+ * from the raw SIM file. Strip all of that before validating.
  */
 function normalize(raw) {
   if (typeof raw !== 'string') {
@@ -77,6 +78,7 @@ function normalize(raw) {
 
   return raw
     .replace(/[\s-]/g, '')
+    .replace(/[fF]$/, '')
     .toUpperCase();
 }
 

@@ -65,12 +65,17 @@ describe('iccid.normalize', function () {
     expect(iccid.normalize('8913-0272-0100-0024-686')).toBe(BELL);
   });
 
+  it('strips the trailing F padding nibble AT&T leave on', function () {
+    expect(iccid.normalize(ATT + 'F')).toBe(ATT);
+    expect(iccid.normalize(ATT + 'f')).toBe(ATT);
+  });
+
   it('leaves an already clean ICCID untouched', function () {
     expect(iccid.normalize(VODAFONE)).toBe(VODAFONE);
   });
 
   it('validates carrier formatted input end to end', function () {
-    expect(iccid.validate('8913 0272 0100 0024 686')).toEqual({ valid: true, iccid: BELL });
+    expect(iccid.validate('8913 1041 0300 0048 267F')).toEqual({ valid: true, iccid: ATT });
   });
 });
 
