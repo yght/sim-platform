@@ -3,8 +3,12 @@
 var s = require('../src/scopes');
 var Scopes = s.Scopes;
 
-function token(scope) {
-  return { sub: 'auth0|5b2f1c', scope: scope };
+function token(scope, org) {
+  var t = { sub: 'auth0|5b2f1c', scope: scope };
+  if (org) {
+    t[s.ORG_CLAIM] = org;
+  }
+  return t;
 }
 
 describe('reading scopes off a token', function () {
@@ -41,6 +45,7 @@ describe('scope checks', function () {
 
   it('lets admin through everything', function () {
     expect(s.has(token('admin:all'), Scopes.TERMINATE_SIM)).toBe(true);
+    expect(s.has(token('admin:all'), Scopes.APPROVE_FRAUD)).toBe(true);
   });
 
   it('is not fooled by a scope that merely contains the required one', function () {
@@ -60,6 +65,7 @@ describe('scope checks', function () {
     } catch (err) {
       expect(err.code).toBe('INSUFFICIENT_SCOPE');
       expect(err.status).toBe(403);
+      expect(err.required).toEqual([Scopes.TERMINATE_SIM]);
     }
   });
 
@@ -71,9 +77,32 @@ describe('scope checks', function () {
 
   it('does not leak the held scopes into the error message', function () {
     try {
-      s.assertScope(token('read:sims write:sims'), Scopes.READ_USAGE);
+      s.assertScope(token('read:sims write:sims'), Scopes.APPROVE_FRAUD);
     } catch (err) {
       expect(err.message).not.toContain('read:sims');
+      expect(err.message).not.toContain('write:sims');
     }
+  });
+});
+
+describe('tenant isolation', function () {
+  it('allows a caller into their own org', function () {
+    expect(s.canAccessOrg(token('read:sims', 'org_bell_reseller_04'), 'org_bell_reseller_04')).toBe(true);
+  });
+
+  it('keeps a caller out of somebody else org', function () {
+    expect(s.canAccessOrg(token('read:sims', 'org_bell_reseller_04'), 'org_vodafone_direct')).toBe(false);
+  });
+
+  it('lets admin cross tenants, because support has to work tickets', function () {
+    expect(s.canAccessOrg(token('admin:all'), 'org_anything')).toBe(true);
+  });
+
+  it('denies a token carrying no org claim rather than defaulting open', function () {
+    expect(s.canAccessOrg(token('read:sims'), 'org_bell_reseller_04')).toBe(false);
+  });
+
+  it('denies when the resource has no org either - two nulls are not a match', function () {
+    expect(s.canAccessOrg(token('read:sims'), null)).toBe(false);
   });
 });

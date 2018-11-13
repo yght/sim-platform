@@ -90,11 +90,45 @@ function assertScope(token, required) {
   }
 }
 
+/**
+ * Tenant isolation.
+ *
+ * Every token carries an org claim identifying which reseller the caller
+ * belongs to. A caller may only touch SIMs belonging to their own org - the
+ * one exception being ADMIN, which support uses to work a ticket across
+ * tenants. This is checked on every read as well as every write; the number
+ * of breaches that come down to an unchecked read is not small.
+ */
+var ORG_CLAIM = 'https://simplatform.io/org';
+
+function orgOf(token) {
+  if (!token) {
+    return null;
+  }
+  return token[ORG_CLAIM] || null;
+}
+
+function canAccessOrg(token, orgId) {
+  if (has(token, Scopes.ADMIN)) {
+    return true;
+  }
+
+  var callerOrg = orgOf(token);
+  if (!callerOrg || !orgId) {
+    return false;
+  }
+
+  return callerOrg === orgId;
+}
+
 module.exports = {
   Scopes: Scopes,
+  ORG_CLAIM: ORG_CLAIM,
   ForbiddenError: ForbiddenError,
   scopesFrom: scopesFrom,
   has: has,
   hasAny: hasAny,
-  assertScope: assertScope
+  assertScope: assertScope,
+  orgOf: orgOf,
+  canAccessOrg: canAccessOrg
 };
