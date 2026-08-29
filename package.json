@@ -1,15 +1,28 @@
 {
   "name": "sim-platform",
-  "version": "0.1.0",
+  "version": "1.4.0",
   "private": true,
   "description": "Multi-carrier SIM lifecycle management platform",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "<rootDir>/services/**/*.test.js",
+      "<rootDir>/packages/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "services/**/src/**/*.js",
+      "packages/**/src/**/*.js"
+    ]
   },
   "devDependencies": {
-    "jest": "^22.0.4"
+    "jest": "^29.7.0"
   },
   "engines": {
-    "node": ">=8.9.0"
+    "node": ">=8.11.0"
   }
 }
