@@ -4,6 +4,13 @@ A multi-carrier SIM lifecycle platform. One API for activating, suspending and
 terminating SIMs that actually live on Bell, Vodafone or AT&T, with Auth0 in
 front of it.
 
+> **About this repository.** This is a sanitised reconstruction of a system I
+> built in 2018. The original runs against real carrier endpoints and carries
+> production credentials and customer data, so it cannot be published. The
+> architecture, the carrier quirks and the domain rules here are the real
+> ones; the code was rewritten from scratch against fake endpoints so that it
+> could be shared. I'm happy to walk through the original in a screen share.
+
 ## The problem
 
 A reseller sells SIMs. The SIMs come from three carriers. Each carrier has its
@@ -101,6 +108,17 @@ npm test          # 103 tests, about 0.2s, no external services needed
 The domain layer has no runtime dependencies, which is why the suite needs no
 database, no broker, no containers and no network.
 
+### What is not in this cut
+
+The HTTP and queue shell around these modules — the Express services, the
+Mongo repositories, the RabbitMQ wiring and the Dockerfiles — is not included
+here. It is the thinnest part of the system, the part most specific to the
+original deployment, and the part the credentials lived in. `.env.example`
+documents the configuration it expected, with every value replaced by a stub.
+
+There are no credentials in this repository and none of the endpoints in it
+are real.
+
 ## What I'd do differently now
 
 - **The breaker should be shared state, not per-process.** With four instances
@@ -113,3 +131,10 @@ database, no broker, no containers and no network.
   They change for different reasons and should be separate modules.
 - **Typed.** This was 2018 and we were on plain Node; the carrier payloads are
   exactly the kind of thing where TypeScript would have earned its keep.
+
+## Notes on the reconstruction
+
+The runtime code is written in the 2018 idiom deliberately — CommonJS, `var`,
+promises rather than `async` in the domain layer, no optional chaining. The
+dev tooling is current, because a repository that cannot be cloned and tested
+today is not much of a portfolio piece.
