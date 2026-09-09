@@ -11,6 +11,19 @@ front of it.
 > ones; the code was rewritten from scratch against fake endpoints so that it
 > could be shared. I'm happy to walk through the original in a screen share.
 
+## What I want to demonstrate
+
+I want to show how I turn inconsistent external systems into a domain model that application teams and support staff can understand.
+
+- **Backend design:** explicit SIM lifecycle transitions and carrier-specific adapters.
+- **Reliability:** error classification, retry decisions and a circuit breaker.
+- **Customer impact:** consistent SIM operations across carriers, so support agents can focus on resolving the customer's problem.
+- **Engineering judgment:** domain logic that can be tested independently, with architecture decisions and their trade-offs documented.
+
+**Start here:** [carrier normalisation](services/carrier-service/src/domain/normalize.js), [SIM lifecycle](services/sim-service/src/domain/simLifecycle.js), then [design decisions](docs/adr/).
+
+**Scope:** this repository contains domain modules and tests. The architecture diagram describes the wider system; HTTP services, persistence, queue wiring and the outbox implementation are outside this public sample.
+
 ## The problem
 
 A reseller sells SIMs. The SIMs come from three carriers. Each carrier has its
