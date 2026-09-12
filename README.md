@@ -11,6 +11,28 @@ front of it.
 > ones; the code was rewritten from scratch against fake endpoints so that it
 > could be shared. I'm happy to walk through the original in a screen share.
 
+## New: runnable Node.js 24 outbox — Yousof
+
+The [modern outbox example](modern/outbox/README.md) implements the persistence
+boundary described in the architecture: SIM state, command receipt and events are
+saved in one SQLite transaction. A separate relay uses leases, stable event IDs
+and retry backoff. The demo uses a console carrier stub.
+
+```bash
+npm ci
+npm run test:ci
+npm run demo:outbox
+```
+
+Use Node.js 24. The full suite combines 103 existing domain tests with 10 real
+SQLite outbox tests. Start with [the store](modern/outbox/store.mjs),
+[the relay](modern/outbox/relay.mjs) and [the failure-path tests](modern/outbox/outbox.test.mjs).
+
+This addition demonstrates durable retries, transactional rollback, restart
+recovery and stale-worker fencing. External delivery is at least once; consumers
+must deduplicate. It adds a runnable persistence example, not the full carrier
+service deployment. [Read the trade-offs](docs/adr/0004-durable-command-outbox.md).
+
 ## What I want to demonstrate
 
 I want to show how I turn inconsistent external systems into a domain model that application teams and support staff can understand.
@@ -22,7 +44,7 @@ I want to show how I turn inconsistent external systems into a domain model that
 
 **Start here:** [carrier normalisation](services/carrier-service/src/domain/normalize.js), [SIM lifecycle](services/sim-service/src/domain/simLifecycle.js), then [design decisions](docs/adr/).
 
-**Scope:** this repository contains domain modules and tests. The architecture diagram describes the wider system; HTTP services, persistence, queue wiring and the outbox implementation are outside this public sample.
+**Scope:** this repository contains domain modules and tests. The architecture diagram describes the wider system. The modern directory adds SQLite persistence and an outbox relay; production HTTP services, broker wiring and real carrier integrations remain outside this public sample.
 
 ## The problem
 
@@ -151,3 +173,9 @@ The runtime code is written in the 2018 idiom deliberately — CommonJS, `var`,
 promises rather than `async` in the domain layer, no optional chaining. The
 dev tooling is current, because a repository that cannot be cloned and tested
 today is not much of a portfolio piece.
+
+## Engineering practices
+
+[Contribution and verification guide](CONTRIBUTING.md) · [Review template](.github/pull_request_template.md)
+
+The demo uses a stub carrier. Passing it does not validate a live carrier integration or external exactly-once delivery.

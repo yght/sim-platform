@@ -8,3 +8,7 @@ npm-debug.log*
 .idea/
 .vscode/
 .claude/
+
+*.db
+*.db-shm
+*.db-wal
