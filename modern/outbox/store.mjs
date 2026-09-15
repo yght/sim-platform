@@ -110,6 +110,17 @@ export class ProvisioningStore {
       WHERE id=? AND status='leased' AND lease_token=?`).run(item.id, item.token).changes === 1;
   }
 
+  quarantine(item) {
+    return this.db.prepare(`UPDATE outbox SET status='dead',lease_token=NULL,lease_until=NULL
+      WHERE id=? AND status='leased' AND lease_token=?`).run(item.id, item.token).changes === 1;
+  }
+
+  // Trusted operator action after fixing the cause. Preserve the consumer deduplication ID.
+  requeue(id, tenant) {
+    return this.db.prepare(`UPDATE outbox SET status='pending',attempts=0,available_at=?
+      WHERE id=? AND tenant=? AND status='dead'`).run(this.now(), id, tenant).changes === 1;
+  }
+
   retry(item) {
     const delay = Math.min(60_000, 1000 * 2 ** Math.min(item.attempts - 1, 6));
     return this.db.prepare(`UPDATE outbox SET status='pending',available_at=?,lease_token=NULL,lease_until=NULL

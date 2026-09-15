@@ -58,9 +58,13 @@ external side effects.
 - Uses Node's built-in `node:sqlite` and `node:test`; the modern example adds no runtime packages.
 - SQLite synchronous transactions keep the example easy to inspect. They block the event loop and are intended for this local example, not a high-throughput service.
 - Tenant values and approval context are trusted service inputs. Authentication, authorization and approver verification must happen before calling this library. It exposes no public HTTP endpoint.
-- The sample relay has no lease heartbeat, carrier timeout, dead-letter queue or retry-attempt ceiling. Long sends can outlive their lease and be replayed.
+- The sample relay has no lease heartbeat or carrier timeout. Failed publishes have a configurable attempt ceiling and durable quarantine; crashed or hung publishers still rely on lease expiry. Long sends can outlive their lease and be replayed.
 - Events for one SIM are not guaranteed to complete in order across concurrent workers. A production relay needs per-SIM ordering or version-aware consumers.
 - Receipts and sent events are retained indefinitely. Retention, schema migrations and operational monitoring are follow-up work.
 
 The tests exercise failure semantics, not throughput. No production performance
 numbers are claimed.
+
+## Quarantine and replay
+
+The relay defaults to five attempts before quarantining a failed event. See the root README's recovery section for the lease-fenced transition, tenant-scoped operator replay and crash/ambiguous-delivery limitations.

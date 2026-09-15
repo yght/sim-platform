@@ -23,5 +23,17 @@ stable event ID. The transaction covers local state, not the carrier's system.
 The sample can reproduce rollback, crash recovery and stale-worker behaviour with
 a local database. SQLite is a deliberate demo dependency; its synchronous writes
 and single-writer model limit throughput. A distributed deployment would need a
-shared database, per-SIM ordering, bounded retries, monitoring and a consumer
+shared database, per-SIM ordering, monitoring and a consumer
 idempotency contract. A lease token fences database updates, not external calls.
+
+## Failure recovery update
+
+A failed publish at the configured attempt limit now moves the event to durable
+quarantine using its lease token. Tenant-scoped operator replay retains the event
+ID and resets the attempt count. Crash-only retries are not bounded by this
+mechanism. Operators must inspect quarantined events and consumers must still
+deduplicate ambiguous deliveries.
+
+Existing tables accept the new status without a schema migration. Do not roll
+back to an older relay until dead events are inspected and explicitly requeued;
+older code leaves them untouched.

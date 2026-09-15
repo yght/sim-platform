@@ -111,3 +111,42 @@ test('publish failure backs off; success acknowledges durable delivery', async t
   assert.equal(sent.status, 'sent');
   assert.equal((await relayOne(store, async () => assert.fail('already sent'))).status, 'idle');
 });
+
+test('exhausted failures persist in quarantine and operator replay preserves identity', async t => {
+  const { store, second, advance } = fixture(t);
+  store.execute(command);
+  const fail = async () => { throw new Error('invalid carrier payload'); };
+  const first = await relayOne(store, fail, { maxAttempts: 2 });
+  assert.equal(first.status, 'retry');
+  advance(1000);
+  const dead = await relayOne(store, fail, { maxAttempts: 2 });
+  assert.equal(dead.status, 'dead');
+  assert.equal(second.claim(), null);
+  assert.equal(second.requeue(dead.id, 'other-tenant'), false);
+  assert.equal(second.requeue(dead.id, 'a'), true);
+  assert.equal(second.requeue(dead.id, 'a'), false);
+  const sent = await relayOne(second, async envelope => assert.equal(envelope.id, first.id));
+  assert.equal(sent.status, 'sent');
+});
+
+test('stale publisher cannot quarantine another worker lease', async t => {
+  const { store, second, advance } = fixture(t);
+  store.execute(command);
+  const result = await relayOne(store, async () => {
+    advance(101);
+    const replacement = second.claim();
+    assert.ok(replacement);
+    throw new Error('old publisher failed');
+  }, { leaseMs: 100, maxAttempts: 1 });
+  assert.equal(result.status, 'lease-lost');
+  assert.equal(store.requeue(result.id, 'a'), false);
+});
+
+test('invalid retry limit leaves the event unclaimed', async t => {
+  const { store } = fixture(t);
+  store.execute(command);
+  for (const maxAttempts of [0, -1, 1.5, Infinity]) {
+    await assert.rejects(relayOne(store, async () => assert.fail(), { maxAttempts }), TypeError);
+  }
+  assert.equal(store.claim().attempts, 1);
+});

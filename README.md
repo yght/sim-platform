@@ -24,7 +24,7 @@ npm run test:ci
 npm run demo:outbox
 ```
 
-Use Node.js 24. The full suite combines 103 existing domain tests with 10 real
+Use Node.js 24. The full suite combines 103 existing domain tests with 13 real
 SQLite outbox tests. Start with [the store](modern/outbox/store.mjs),
 [the relay](modern/outbox/relay.mjs) and [the failure-path tests](modern/outbox/outbox.test.mjs).
 
@@ -179,3 +179,13 @@ today is not much of a portfolio piece.
 [Contribution and verification guide](CONTRIBUTING.md) · [Review template](.github/pull_request_template.md)
 
 The demo uses a stub carrier. Passing it does not validate a live carrier integration or external exactly-once delivery.
+
+## Recovering repeatedly failing events
+
+The modern relay now quarantines an event as `dead` after a failed publish reaches `maxAttempts` (default 5). Other events remain eligible for delivery. The transition uses the current lease token so an obsolete worker cannot quarantine another worker's event.
+
+After investigating and fixing the cause, a trusted operator can call `store.requeue(eventId, tenant)`. This only changes a matching dead event, resets its attempt counter and preserves the original event ID for consumer deduplication. No public recovery endpoint is exposed.
+
+The limit applies when publishing returns an error; crashed or indefinitely hung publishers still rely on lease expiry and may exceed this count. Quarantine is not confirmed non-delivery: a remote service may accept a request before its response is lost. Consumer idempotency remains required. Dead events need operator monitoring; retention and an admin UI remain outside this sample.
+
+Run `npm run test:outbox` for failure exhaustion, tenant-scoped replay and stale-worker fencing tests.
